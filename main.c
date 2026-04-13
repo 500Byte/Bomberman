@@ -1,114 +1,136 @@
 #include <allegro.h>
-#define MAXFILAS 13 /*Para el eje Y*/
-#define MAXCOLS 15 /*Para el eje X*/
+#include <stdlib.h>
 
-volatile int ticks;
-void tick_counter() {
-	ticks++;
-}
-END_OF_FUNCTION(tick_counter)
+#define MAX_FILAS 13
+#define MAX_COLS 15
+#define WINDOW_WIDTH 720
+#define WINDOW_HEIGHT 624
+#define TILE_SIZE 48
 
 volatile int milisegundos;
-void msec_counter() {
-	milisegundos++;
+volatile int quit = 0;
+
+void msec_counter(void) {
+    milisegundos++;
 }
 END_OF_FUNCTION(msec_counter)
 
-BITMAP *buffer;
-int posX = 48, posY = 48;
-int dir;
+void close_button(void) {
+    quit = 1;
+}
+END_OF_FUNCTION(close_button)
 
-char mapa [MAXFILAS][MAXCOLS] = {
-	"XXXXXXXXXXXXXXX",
-	"X             X",
-	"X X X X X X X X",
-	"X             X",
-	"X X X X X X X X",
-	"X             X",
-	"X X X X X X X X",
-	"X             X",
-	"X X X X X X X X",
-	"X             X",
-	"X X X X X X X X",
-	"X             X",
-	"XXXXXXXXXXXXXXX"
+BITMAP *buffer = NULL;
+BITMAP *terreno[3] = { NULL };
+BITMAP *bomberizq[3] = { NULL };
+BITMAP *bomberar[3] = { NULL };
+BITMAP *bomberder[3] = { NULL };
+BITMAP *bomberab[3] = { NULL };
+
+int posX = TILE_SIZE;
+int posY = TILE_SIZE;
+int dir = 0;
+
+const char mapa[MAX_FILAS][MAX_COLS + 1] = {
+    "XXXXXXXXXXXXXXX",
+    "X             X",
+    "X X X X X X X X",
+    "X             X",
+    "X X X X X X X X",
+    "X             X",
+    "X X X X X X X X",
+    "X             X",
+    "X X X X X X X X",
+    "X             X",
+    "X X X X X X X X",
+    "X             X",
+    "XXXXXXXXXXXXXXX"
 };
 
-void dibujar_mapa() {
-	int row, col;
+static void dibujar_mapa(void) {
+    int row, col;
 
-	BITMAP *Terreno[3];
-	Terreno[0] = load_bitmap("Sprites/Terreno/block00.bmp", NULL);
-	Terreno[1] = load_bitmap("Sprites/Terreno/block01.bmp", NULL);
-	Terreno[2] = load_bitmap("Sprites/Terreno/block02.bmp", NULL);
-
-	for(row = 0; row < MAXFILAS; row++) {
-		for(col = 0; col < MAXCOLS; col++) {
-			if(mapa[row][col] == 'X') {
-				draw_sprite(buffer, Terreno[2], col*48, row*48);
-			}
-			if(mapa[row][col] == ' ') {
-				draw_sprite(buffer, Terreno[0], col*48, row*48);
-			}
-			if(mapa[row][col] == 'O') {
-				draw_sprite(buffer, Terreno[1], col*48, row*48);
-			}
-		}
-	}
+    for (row = 0; row < MAX_FILAS; row++) {
+        for (col = 0; col < MAX_COLS; col++) {
+            BITMAP *tile = terreno[0];
+            if (mapa[row][col] == 'X') {
+                tile = terreno[2];
+            } else if (mapa[row][col] == 'O') {
+                tile = terreno[1];
+            }
+            draw_sprite(buffer, tile, col * TILE_SIZE, row * TILE_SIZE);
+        }
+    }
 }
 
-void pantalla() {
-	blit(buffer, screen , 0, 0, 0, 0, 720, 624);
+static void cleanup(void) {
+    int i;
+
+    destroy_bitmap(buffer);
+    for (i = 0; i < 3; i++) {
+        destroy_bitmap(terreno[i]);
+        destroy_bitmap(bomberizq[i]);
+        destroy_bitmap(bomberar[i]);
+        destroy_bitmap(bomberder[i]);
+        destroy_bitmap(bomberab[i]);
+    }
 }
 
-void dibujar_personaje() {
-	int num_frames = 3;
-	int frame_atual;
-	int tempo_troca = 100;
+static BITMAP *load_sprite(const char *path) {
+    BITMAP *bmp = load_bitmap(path, NULL);
+    if (!bmp) {
+        allegro_message("No se pudo cargar %s", path);
+        cleanup();
+        exit(EXIT_FAILURE);
+    }
+    return bmp;
+}
 
-	frame_atual = (milisegundos / tempo_troca) % num_frames;
+static void cargar_recursos(void) {
+    terreno[0] = load_sprite("Sprites/Terreno/block00.bmp");
+    terreno[1] = load_sprite("Sprites/Terreno/block01.bmp");
+    terreno[2] = load_sprite("Sprites/Terreno/block02.bmp");
 
-	BITMAP *Bomberizq[4];
-	Bomberizq[0] = load_bitmap("Sprites/Bomberman/izq00.bmp", NULL);
-	Bomberizq[1] = load_bitmap("Sprites/Bomberman/izq01.bmp", NULL);
-	Bomberizq[2] = load_bitmap("Sprites/Bomberman/izq02.bmp", NULL);
+    bomberizq[0] = load_sprite("Sprites/Bomberman/izq00.bmp");
+    bomberizq[1] = load_sprite("Sprites/Bomberman/izq01.bmp");
+    bomberizq[2] = load_sprite("Sprites/Bomberman/izq02.bmp");
 
-	BITMAP *Bomberar[4];
-	Bomberar[0] = load_bitmap("Sprites/Bomberman/ar00.bmp", NULL);
-	Bomberar[1] = load_bitmap("Sprites/Bomberman/ar01.bmp", NULL);
-	Bomberar[2] = load_bitmap("Sprites/Bomberman/ar02.bmp", NULL);
+    bomberar[0] = load_sprite("Sprites/Bomberman/ar00.bmp");
+    bomberar[1] = load_sprite("Sprites/Bomberman/ar01.bmp");
+    bomberar[2] = load_sprite("Sprites/Bomberman/ar02.bmp");
 
-	BITMAP *Bomberder[4];
-	Bomberder[0] = load_bitmap("Sprites/Bomberman/der00.bmp", NULL);
-	Bomberder[1] = load_bitmap("Sprites/Bomberman/der01.bmp", NULL);
-	Bomberder[2] = load_bitmap("Sprites/Bomberman/der02.bmp", NULL);
+    bomberder[0] = load_sprite("Sprites/Bomberman/der00.bmp");
+    bomberder[1] = load_sprite("Sprites/Bomberman/der01.bmp");
+    bomberder[2] = load_sprite("Sprites/Bomberman/der02.bmp");
 
-	BITMAP *Bomberab[4];
-	Bomberab[0] = load_bitmap("Sprites/Bomberman/ab00.bmp", NULL);
-	Bomberab[1] = load_bitmap("Sprites/Bomberman/ab01.bmp", NULL);
-	Bomberab[2] = load_bitmap("Sprites/Bomberman/ab02.bmp", NULL);
+    bomberab[0] = load_sprite("Sprites/Bomberman/ab00.bmp");
+    bomberab[1] = load_sprite("Sprites/Bomberman/ab01.bmp");
+    bomberab[2] = load_sprite("Sprites/Bomberman/ab02.bmp");
+}
 
-	BITMAP *Bomb[4];
-	Bomb[0] = load_bitmap("Sprites/Bomberman/bomb00.bmp", NULL);
-	Bomb[1] = load_bitmap("Sprites/Bomberman/bomb01.bmp", NULL);
-	Bomb[2] = load_bitmap("Sprites/Bomberman/bomb02.bmp", NULL);
+static void dibujar_personaje(void) {
+    int frame = (milisegundos / 100) % 3;
+    BITMAP *sprite = bomberab[1];
 
-	if (dir==0) {
-		draw_sprite(buffer, Bomberab[1], posX, posY);
-	}
-	if (dir==1) {
-		draw_sprite(buffer, Bomberizq[frame_atual], posX, posY);
-	}
-	if (dir==2) {
-		draw_sprite(buffer, Bomberder[frame_atual], posX, posY);
-	}
-	if (dir==3) {
-		draw_sprite(buffer, Bomberar[frame_atual], posX, posY);
-	}
-	if (dir==4) {
-		draw_sprite(buffer, Bomberab[frame_atual], posX, posY);
-	}
+    switch (dir) {
+    case 1:
+        sprite = bomberizq[frame];
+        break;
+    case 2:
+        sprite = bomberder[frame];
+        break;
+    case 3:
+        sprite = bomberar[frame];
+        break;
+    case 4:
+        sprite = bomberab[frame];
+        break;
+    default:
+        sprite = bomberab[1];
+        break;
+    }
 
+    draw_sprite(buffer, sprite, posX, posY);
 }
 
 /* void dibujar_bomba() {
@@ -116,27 +138,39 @@ void dibujar_personaje() {
 	draw_sprite(buffer, Bomb, posX, posY);
 }*/
 
-int main() {
-	allegro_init();
-	install_keyboard();
-	install_timer();
+int main(void) {
+    allegro_init();
 
-	set_color_depth(32);
-	set_gfx_mode(GFX_AUTODETECT_WINDOWED, 720, 624, 0, 0);
+    if (install_keyboard() != 0) {
+        allegro_message("No se pudo inicializar el teclado");
+        return EXIT_FAILURE;
+    }
 
-	ticks = 0;
-	LOCK_FUNCTION(tick_counter);
-	LOCK_VARIABLE(ticks);
-	install_int_ex(tick_counter, BPS_TO_TIMER(30));
+    install_timer();
 
-	milisegundos = 0;
-	LOCK_FUNCTION(msec_counter);
-	LOCK_VARIABLE(milisegundos);
-	install_int_ex(msec_counter, MSEC_TO_TIMER(1));
+    set_color_depth(32);
+    if (set_gfx_mode(GFX_AUTODETECT_WINDOWED, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0) != 0) {
+        allegro_message("Error al iniciar modo gráfico: %s", allegro_error);
+        return EXIT_FAILURE;
+    }
 
-	buffer = create_bitmap(768, 624);
+    LOCK_VARIABLE(milisegundos);
+    LOCK_FUNCTION(msec_counter);
+    install_int_ex(msec_counter, MSEC_TO_TIMER(1));
 
-	while(!key[KEY_ESC]) {
+    LOCK_VARIABLE(quit);
+    LOCK_FUNCTION(close_button);
+    set_close_button_callback(close_button);
+
+    buffer = create_bitmap(WINDOW_WIDTH, WINDOW_HEIGHT);
+    if (!buffer) {
+        allegro_message("No se pudo crear el buffer");
+        return EXIT_FAILURE;
+    }
+
+    cargar_recursos();
+
+	while(!quit && !key[KEY_ESC]) {
 		if (!key[KEY_LEFT] && !key[KEY_RIGHT] && !key[KEY_UP] && !key[KEY_DOWN]) {
 			dir = 0;
 		}
@@ -163,10 +197,14 @@ int main() {
 		if (key[KEY_SPACE]) {
 			//dibujar_bomba();
 		}
-		clear(buffer);
+		clear_bitmap(buffer);
 		dibujar_mapa();
 		dibujar_personaje();
-		pantalla();
+		blit(buffer, screen, 0, 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+		rest(10);
 	}
+
+	cleanup();
+	return EXIT_SUCCESS;
 }
 END_OF_MAIN();
