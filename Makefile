@@ -1,20 +1,16 @@
 CC = gcc
-PKG_CONFIG = pkg-config
-ALLEGRO_CFLAGS := $(shell $(PKG_CONFIG) --cflags allegro-5 allegro_image-5 allegro_dialog-5 allegro_primitives-5)
-ALLEGRO_LIBS := $(shell $(PKG_CONFIG) --libs allegro-5 allegro_image-5 allegro_dialog-5 allegro_primitives-5)
-CFLAGS = -Wall -Wextra -std=c99 $(ALLEGRO_CFLAGS)
-LDFLAGS = $(ALLEGRO_LIBS) -lm
-SRC = main.c
-OBJ = $(SRC:.c=.o)
-BIN = bomberman
+CFLAGS = -Wall -Wextra -g $(shell pkg-config --cflags allegro-5 allegro_image-5 allegro_dialog-5 allegro_main-5)
+LIBS = $(shell pkg-config --libs allegro-5 allegro_image-5 allegro_dialog-5 allegro_main-5)
 
-all: $(BIN)
+TARGET = bomberman
 
-$(BIN): $(OBJ)
-	$(CC) $(OBJ) -o $(BIN) $(LDFLAGS)
+all: $(TARGET)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+$(TARGET): main.c
+	$(CC) $(CFLAGS) -o $(TARGET) main.c $(LIBS)
+
+run: all
+	./$(TARGET)
 
 clean:
-	rm -f $(OBJ) $(BIN)
+	rm -f $(TARGET)
